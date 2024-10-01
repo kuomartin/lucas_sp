@@ -2,3 +2,6 @@ read_server
 write_server
 .vscode
 server
+nohup_pids.txt
+*.log
+csie_trains

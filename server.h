@@ -59,7 +59,7 @@ train_info train_table[TRAIN_NUM];
 
 const char *csie_trains_prefix = "./csie_trains/train_";
 
-train_info* get_train_info(int shift_id) {
+train_info *get_train_info(int shift_id) {
     if (shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END)
         return NULL;
     char fp[FILE_LEN];
@@ -101,13 +101,13 @@ int write_train_info(train_info *info) {
     info->least_modify = stat_buf.st_mtim;
     return 0;
 }
-int sprint_train_info(char *buf,train_info *info) {
-    int len=0;
+int sprint_train_info(char *buf, train_info *info) {
+    int len = 0;
     for (int i = 0; i < SEAT_NUM; i++) {
         if ((i + 1) % 4)
-            len+=sprintf(buf+len, "%d ", !!info->seat_stat[i]);
+            len += sprintf(buf + len, "%d ", !!info->seat_stat[i]);
         else
-            len+=sprintf(buf+len, "%d\n", !!info->seat_stat[i]);
+            len += sprintf(buf + len, "%d\n", !!info->seat_stat[i]);
     }
     return 0;
 }
@@ -149,4 +149,12 @@ int sprint_booking_info(char *dest, record rec) {
                   "|- Paid: %s\n\n",
             rec.shift_id, chosen_seat, paid);
     return 0;
+}
+
+int train_full(int shift_id) {
+    train_info *info = get_train_info(shift_id);
+    for (int i = 0; i < SEAT_NUM; i++)
+        if (info->seat_stat[i] == 0)
+            return 0;
+    return 1;
 }

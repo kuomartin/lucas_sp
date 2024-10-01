@@ -4,8 +4,6 @@
 
 #include "server.h"
 
-#define PORT "9034" // port we're listening on
-
 const char *welcome_banner = "======================================\n"
                              " Welcome to CSIE Train Booking System \n"
                              "======================================\n";
@@ -13,14 +11,14 @@ const char *welcome_banner = "======================================\n"
 const char *lock_msg = ">>> Locked.\n";
 const char *exit_msg = ">>> Client exit.\n";
 const char *cancel_msg = ">>> You cancel the seat.\n";
-const char *full_msg = ">>> The shift is fully booked.\n";
+const char *full_msg = ">>> The shift_id is fully booked.\n";
 const char *seat_booked_msg = ">>> The seat is booked.\n";
 const char *no_seat_msg = ">>> No seat to pay.\n";
 const char *book_succ_msg = ">>> Your train booking is successful.\n";
 const char *invalid_op_msg = ">>> Invalid operation.\n";
 
-char *read_shift_msg = "Please select the shift you want to check [902001-902005]: ";
-char *write_shift_msg = "Please select the shift you want to book [902001-902005]: ";
+char *read_shift_msg = "Please select the shift_id you want to check [902001-902005]: ";
+char *write_shift_msg = "Please select the shift_id you want to book [902001-902005]: ";
 char *write_seat_msg = "Select the seat [1-40] or type \"pay\" to confirm: ";
 char *write_seat_or_exit_msg = "Type \"seat\" to continue or \"exit\" to quit [seat/exit]: ";
 
@@ -31,7 +29,12 @@ int init_train_table(void);
 int handle_request(request *req);
 int rm_req(int conn_fd);
 
-int main(void) {
+int main(int argc, char **argv) {
+    // Parse args.
+    if (argc != 2) {
+        fprintf(stderr, "usage: %s [port]\n", argv[0]);
+        exit(1);
+    }
     fd_set master;   // master file descriptor list
     fd_set read_fds; // temp file descriptor list for select()
     int fdmax;       // maximum file descriptor number
@@ -48,6 +51,7 @@ int main(void) {
 
     int yes = 1; // for setsockopt() SO_REUSEADDR, below
     int i, j, rv;
+    
 
     struct addrinfo hints, *ai, *p;
     init_req_table();
@@ -60,7 +64,7 @@ int main(void) {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    if ((rv = getaddrinfo(NULL, PORT, &hints, &ai)) != 0) {
+    if ((rv = getaddrinfo(NULL, argv[1], &hints, &ai)) != 0) {
         fprintf(stderr, "selectserver: %s\n", gai_strerror(rv));
         exit(1);
     }
@@ -220,20 +224,23 @@ int handle_request(request *req) {
         break;
     case SHIFT:
         // input shift id
-        int shift;
-        shift = strtol(reqbuf, &endptr, 10);
-        if (*endptr != '\0' || shift < TRAIN_ID_START || shift > TRAIN_ID_END) {
+        int shift_id;
+        shift_id = strtol(reqbuf, &endptr, 10);
+        if (*endptr != '\0' || shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END) {
             strcat(buf, invalid_op_msg);
-            status = INVALID;
         } else {
-            req->booking_info.shift_id = shift;
-
+            // it's a valid shift id
 #ifdef WRITE_SERVER
-            sprint_booking_info(tmpbuf, req->booking_info);
-            strcat(buf, tmpbuf);
-            status = SEAT;
+            req->booking_info.shift_id = shift_id;
+            if (train_full(shift_id)) {
+                strcat(buf, full_msg);
+            } else {
+                sprint_booking_info(tmpbuf, req->booking_info);
+                strcat(buf, tmpbuf);
+                status = SEAT;
+            }
 #elif defined READ_SERVER
-            train_info *info = get_train_info(shift);
+            train_info *info = get_train_info(shift_id);
             sprint_train_info(tmpbuf, info);
             strcat(buf, tmpbuf);
 #endif
@@ -263,7 +270,6 @@ int handle_request(request *req) {
             seat = strtol(reqbuf, &endptr, 10);
             if (*endptr != '\0' || seat < 1 || seat > SEAT_NUM) {
                 strcat(buf, invalid_op_msg);
-                status = SHIFT;
             } else {
                 // select a valid seat id
                 seat--;
@@ -320,8 +326,7 @@ int handle_request(request *req) {
         break;
     case SHIFT:
 #ifdef WRITE_SERVER
-        strcat(buf, write_seat_msg);
-        status = SEAT;
+        strcat(buf, write_shift_msg);
 #elif defined READ_SERVER
         strcat(buf, read_shift_msg);
 #endif
@@ -331,7 +336,6 @@ int handle_request(request *req) {
         break;
     case BOOKED:
         strcat(buf, write_seat_or_exit_msg);
-        status = BOOKED;
         break;
     }
     int len = strlen(buf);
