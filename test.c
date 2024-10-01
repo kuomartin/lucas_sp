@@ -17,14 +17,6 @@
 #define FILE_LEN 50
 #define MAX_MSG_LEN 512
 
-enum STATE {
-    INVALID, // Invalid state
-    SHIFT,   // Shift selection
-    SEAT,    // Seat selection
-    BOOKED,  // Payment
-    EXIT
-};
-
 enum SEAT {
     FREE,   // Seat is unknown
     CHOSEN, // Seat is currently being reserved
@@ -44,17 +36,6 @@ typedef struct {
     enum SEAT seatstats[SEAT_NUM];
 } record;
 
-typedef struct {
-    char host[512];        // client's host
-    int conn_fd;           // fd to talk with client
-    char buf[MAX_MSG_LEN]; // data sent by/to client
-    size_t buf_len;        // bytes used by buf
-    enum STATE status;     // request status
-    record booking_info;   // booking status
-    time_t start_at;       // connection remaining time
-} request;
-
-request *req_table = NULL;
 train_info train_table[TRAIN_NUM];
 
 const char *csie_trains_prefix = "./csie_trains/train_";
@@ -65,7 +46,7 @@ int get_train_info(int shift_id, train_info **buf) {
     char fp[FILE_LEN];
     struct stat stat_buf;
     memset(fp, 0, sizeof(fp));
-    sprintf(fp,"%s%d", csie_trains_prefix, shift_id);
+    sprintf("%s%d", csie_trains_prefix, shift_id);
     shift_id -= TRAIN_ID_START;
     if (stat(fp, &stat_buf) == -1)
         return -1;
@@ -138,4 +119,29 @@ int sprint_train_info(char *dest, record rec) {
                   "|- Paid: %s\n\n",
             rec.shift_id, chosen_seat, paid);
     return 0;
+}
+int init_train_table(void) {
+    int shift_id, i, j;
+    char fp[FILE_LEN];
+    struct stat stat_buf;
+    memset(fp, 0, sizeof(fp));
+
+    for (i = 0; i < TRAIN_NUM; i++) {
+        shift_id = TRAIN_ID_START + i;
+        printf("read train %d",shift_id);
+        sprintf(fp,"%s%d", csie_trains_prefix, shift_id);
+        FILE *f = fopen(fp, "r");
+        for (j = 0; j < SEAT_NUM; j++) {
+            fscanf(f, "%d", &train_table[i].seat_stat[j]);
+        }
+        if (stat(fp, &stat_buf) == -1)
+            return -1;
+        train_table[i].least_modify = stat_buf.st_mtim;
+        train_table[i].id = shift_id;
+        strcpy(train_table[i].path, fp);
+    }
+    return 0;
+}
+int main(void){
+    init_train_table();
 }
