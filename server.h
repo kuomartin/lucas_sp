@@ -59,9 +59,9 @@ train_info train_table[TRAIN_NUM];
 
 const char *csie_trains_prefix = "./csie_trains/train_";
 
-int get_train_info(int shift_id, train_info **buf) {
+train_info* get_train_info(int shift_id) {
     if (shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END)
-        return 1; // invalid id
+        return NULL;
     char fp[FILE_LEN];
     struct stat stat_buf;
     train_info *info = &train_table[shift_id - TRAIN_ID_START];
@@ -71,7 +71,7 @@ int get_train_info(int shift_id, train_info **buf) {
     strcpy(info->path, fp);
     info->id = shift_id;
     if (stat(fp, &stat_buf) == -1)
-        return -1;
+        return NULL;
     int secdiff = stat_buf.st_mtim.tv_sec - info->least_modify.tv_sec;
     int nsecdiff = stat_buf.st_mtim.tv_nsec - info->least_modify.tv_nsec;
     info->least_modify = stat_buf.st_mtim;
@@ -82,9 +82,7 @@ int get_train_info(int shift_id, train_info **buf) {
         }
         fclose(f);
     }
-
-    *buf = info;
-    return 0;
+    return info;
 }
 int write_train_info(train_info *info) {
     FILE *f = fopen(info->path, "w");
@@ -103,7 +101,17 @@ int write_train_info(train_info *info) {
     info->least_modify = stat_buf.st_mtim;
     return 0;
 }
-int sprint_train_info(char *dest, record rec) {
+int sprint_train_info(char *buf,train_info *info) {
+    int len=0;
+    for (int i = 0; i < SEAT_NUM; i++) {
+        if ((i + 1) % 4)
+            len+=sprintf(buf+len, "%d ", !!info->seat_stat[i]);
+        else
+            len+=sprintf(buf+len, "%d\n", !!info->seat_stat[i]);
+    }
+    return 0;
+}
+int sprint_booking_info(char *dest, record rec) {
     /*
      * Booking info
      * |- Shift ID: 902001
@@ -123,7 +131,6 @@ int sprint_train_info(char *dest, record rec) {
             if (chosen_seat[0])
                 sprintf(buf, ",%d", i + 1);
             else
-
                 sprintf(buf, "%d", i + 1);
             strcat(chosen_seat, buf);
             break;
@@ -131,7 +138,8 @@ int sprint_train_info(char *dest, record rec) {
             if (paid[0])
                 sprintf(buf, ",%d", i + 1);
             else
-                strcat(paid, buf);
+                sprintf(buf, "%d", i + 1);
+            strcat(paid, buf);
             break;
         }
     }

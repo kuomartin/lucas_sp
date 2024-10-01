@@ -19,19 +19,16 @@ const char *no_seat_msg = ">>> No seat to pay.\n";
 const char *book_succ_msg = ">>> Your train booking is successful.\n";
 const char *invalid_op_msg = ">>> Invalid operation.\n";
 
-// #ifdef READ_SERVER
 char *read_shift_msg = "Please select the shift you want to check [902001-902005]: ";
-// #elif defined WRITE_SERVER
 char *write_shift_msg = "Please select the shift you want to book [902001-902005]: ";
 char *write_seat_msg = "Select the seat [1-40] or type \"pay\" to confirm: ";
 char *write_seat_or_exit_msg = "Type \"seat\" to continue or \"exit\" to quit [seat/exit]: ";
-// #endif
 
 int maxReq; // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa);
 int init_req_table(void);
 int init_train_table(void);
-int handleRequest(request *req);
+int handle_request(request *req);
 int rm_req(int conn_fd);
 
 int main(void) {
@@ -129,7 +126,6 @@ int main(void) {
                         if (newfd > fdmax) {    // keep track of the max
                             fdmax = newfd;
                         }
-                        send(newfd, welcome_banner, strlen(welcome_banner), 0);
                         req_table[newfd].conn_fd = newfd;
                         sprintf(req_table[newfd].host, inet_ntop(remoteaddr.ss_family,
                                                                  get_in_addr((struct sockaddr *)&remoteaddr),
@@ -138,6 +134,7 @@ int main(void) {
                                "socket %d\n",
                                req_table[newfd].host,
                                newfd);
+                        handle_request(&req_table[newfd]);
                     }
                 } else {
                     // handle data from a client
@@ -155,8 +152,7 @@ int main(void) {
                     } else {
                         // we got some data from a client
                         req_table[i].buf_len = sprintf(req_table[i].buf, buf);
-                        printf("%s", req_table[i].buf);
-                        if (handleRequest(&req_table[i]) == -1) {
+                        if (handle_request(&req_table[i]) == -1) {
                             printf("client %s exits.\n", req_table[i].host);
                             FD_CLR(i, &master);
                         }
@@ -185,7 +181,6 @@ int init_train_table(void) {
 
     for (i = 0; i < TRAIN_NUM; i++) {
         shift_id = TRAIN_ID_START + i;
-        printf("read train %d", shift_id);
         sprintf(fp, "%s%d", csie_trains_prefix, shift_id);
         FILE *f = fopen(fp, "r");
         for (j = 0; j < SEAT_NUM; j++) {
@@ -207,7 +202,7 @@ int init_req_table(void) {
     memset(req_table, 0, sizeof(request) * maxReq);
     return 0;
 }
-int handleRequest(request *req) {
+int handle_request(request *req) {
     char buf[MAX_MSG_LEN], reqbuf[MAX_MSG_LEN], tmpbuf[MAX_MSG_LEN];
     char *endptr;
     int status = req->status;
@@ -220,8 +215,8 @@ int handleRequest(request *req) {
 
     switch (status) {
     case INVALID:
-        // select shift
-        // no input
+        strcat(buf, welcome_banner);
+        status = SHIFT;
         break;
     case SHIFT:
         // input shift id
@@ -229,10 +224,19 @@ int handleRequest(request *req) {
         shift = strtol(reqbuf, &endptr, 10);
         if (*endptr != '\0' || shift < TRAIN_ID_START || shift > TRAIN_ID_END) {
             strcat(buf, invalid_op_msg);
-            printf("end = %d; shift = %d\n", *endptr, shift);
             status = INVALID;
         } else {
             req->booking_info.shift_id = shift;
+
+#ifdef WRITE_SERVER
+            sprint_booking_info(tmpbuf, req->booking_info);
+            strcat(buf, tmpbuf);
+            status = SEAT;
+#elif defined READ_SERVER
+            train_info *info = get_train_info(shift);
+            sprint_train_info(tmpbuf, info);
+            strcat(buf, tmpbuf);
+#endif
         }
         break;
     case SEAT:
@@ -241,19 +245,16 @@ int handleRequest(request *req) {
             if (req->booking_info.num_chosen == 0) {
                 strcat(buf, no_seat_msg);
             } else {
-                train_info *tra_info;
-                get_train_info(req->booking_info.shift_id, &tra_info);
+                train_info *tra_info = get_train_info(req->booking_info.shift_id);
                 for (int i = 0; i < SEAT_NUM; i++) {
                     if (req->booking_info.seatstats[i] == CHOSEN) {
-                        tra_info->seat_stat[i] = BOOKED;
-                        req->booking_info.seatstats[i] = BOOKED;
+                        tra_info->seat_stat[i] = PAID;
+                        req->booking_info.seatstats[i] = PAID;
                     }
                 }
                 int err = write_train_info(tra_info);
-                if (err != 0) {
-                    fprintf(stderr, "File IO error: %d\n", err);
+                if (err != 0)
                     exit(-1);
-                }
                 status = BOOKED;
             }
         } else {
@@ -267,18 +268,19 @@ int handleRequest(request *req) {
                 // select a valid seat id
                 seat--;
                 int rb = 0;
-                train_info *tra_info;
-                get_train_info(req->booking_info.shift_id, &tra_info);
+                train_info *tra_info = get_train_info(req->booking_info.shift_id);
                 switch (tra_info->seat_stat[seat]) {
                 case FREE:
                     tra_info->seat_stat[seat] = CHOSEN;
-                    req->booking_info.seatstats[seat]=CHOSEN;
+                    req->booking_info.seatstats[seat] = CHOSEN;
+                    req->booking_info.num_chosen++;
                     rb = 1;
                     break;
                 case CHOSEN:
                     if (req->booking_info.seatstats[seat] == CHOSEN) {
                         tra_info->seat_stat[seat] = FREE;
                         req->booking_info.seatstats[seat] = FREE;
+                        req->booking_info.num_chosen++;
                         strcat(buf, cancel_msg);
                         rb = 1;
                     } else {
@@ -291,15 +293,13 @@ int handleRequest(request *req) {
                 }
                 if (rb != 0) {
                     int err = write_train_info(tra_info);
-                    if (err != 0) {
-                        fprintf(stderr, "File IO error: %d\n", err);
+                    if (err != 0)
                         exit(-1);
-                    }
                 }
             }
-            sprint_train_info(tmpbuf,req->booking_info);
-            strcat(buf, tmpbuf);
         }
+        sprint_booking_info(tmpbuf, req->booking_info);
+        strcat(buf, tmpbuf);
         break;
     case BOOKED:
         // input "seat" or "exit"
@@ -307,6 +307,7 @@ int handleRequest(request *req) {
             status = SEAT;
         else if (strcmp(reqbuf, "exit") == 0) {
             close(req->conn_fd);
+            rm_req(req->conn_fd);
             return -1;
         } else {
             strcat(buf, invalid_op_msg);
@@ -316,12 +317,14 @@ int handleRequest(request *req) {
     // the next question
     switch (status) {
     case INVALID:
-        strcat(buf, write_shift_msg);
-        status = SHIFT;
         break;
     case SHIFT:
+#ifdef WRITE_SERVER
         strcat(buf, write_seat_msg);
         status = SEAT;
+#elif defined READ_SERVER
+        strcat(buf, read_shift_msg);
+#endif
         break;
     case SEAT:
         strcat(buf, write_seat_msg);
@@ -331,23 +334,22 @@ int handleRequest(request *req) {
         status = BOOKED;
         break;
     }
-    strcpy(reqbuf, buf);
-    int len = strlen(reqbuf);
+    int len = strlen(buf);
     req->status = status;
-    send(req->conn_fd, reqbuf, len, 0);
+    send(req->conn_fd, buf, len, 0);
     printf("%s is on status %d\n", req->host, req->status);
     return 0;
 }
 
-int rm_req(int conn_id){
+int rm_req(int conn_id) {
     int i;
-    train_info *info;
     request *req = &req_table[conn_id];
-    get_train_info(req->booking_info.shift_id,&info);
-    for(i=0;i<SEAT_NUM;i++){
-        if(req->booking_info.seatstats[i]==CHOSEN)
+    train_info *info = get_train_info(req->booking_info.shift_id);
+    for (i = 0; i < SEAT_NUM; i++) {
+        if (req->booking_info.seatstats[i] == CHOSEN)
             info->seat_stat[i] = FREE;
     }
     write_train_info(info);
-    memset(req,0,sizeof(req));
+    request null_req = {};
+    *req = null_req;
 }

@@ -83,7 +83,7 @@ int write_train_info(train_info *info) {
     return 0;
 }
 
-int sprint_train_info(char *dest, record rec) {
+int sprint_booking_info(char *dest, record rec) {
     /*
      * Booking info
      * |- Shift ID: 902001
