@@ -64,12 +64,14 @@ int get_train_info(int shift_id, train_info **buf) {
         return 1; // invalid id
     char fp[FILE_LEN];
     struct stat stat_buf;
+    train_info *info = &train_table[shift_id - TRAIN_ID_START];
     memset(fp, 0, sizeof(fp));
-    sprintf(fp,"%s%d", csie_trains_prefix, shift_id);
-    shift_id -= TRAIN_ID_START;
+    sprintf(fp, "%s%d", csie_trains_prefix, shift_id);
+    // set values in info
+    strcpy(info->path, fp);
+    info->id = shift_id;
     if (stat(fp, &stat_buf) == -1)
         return -1;
-    train_info *info = &train_table[shift_id];
     int secdiff = stat_buf.st_mtim.tv_sec - info->least_modify.tv_sec;
     int nsecdiff = stat_buf.st_mtim.tv_nsec - info->least_modify.tv_nsec;
     info->least_modify = stat_buf.st_mtim;
@@ -78,30 +80,29 @@ int get_train_info(int shift_id, train_info **buf) {
         for (int i = 0; i < SEAT_NUM; i++) {
             fscanf(f, "%d", &info->seat_stat[i]);
         }
+        fclose(f);
     }
+
     *buf = info;
     return 0;
 }
-
 int write_train_info(train_info *info) {
     FILE *f = fopen(info->path, "w");
     if (f == NULL)
         return 1; // fail to open
     for (int i = 0; i < SEAT_NUM; i++) {
-        if (i % 4)
+        if ((i + 1) % 4)
             fprintf(f, "%d ", info->seat_stat[i]);
         else
             fprintf(f, "%d\n", info->seat_stat[i]);
     }
     fclose(f);
-
     struct stat stat_buf;
     if (stat(info->path, &stat_buf) == -1)
         return 2;
     info->least_modify = stat_buf.st_mtim;
     return 0;
 }
-
 int sprint_train_info(char *dest, record rec) {
     /*
      * Booking info
@@ -119,19 +120,21 @@ int sprint_train_info(char *dest, record rec) {
     for (int i = 0; i < SEAT_NUM; i++) {
         switch (rec.seatstats[i]) {
         case CHOSEN:
-            sprintf(buf, ",%d", i);
+            if (chosen_seat[0])
+                sprintf(buf, ",%d", i + 1);
+            else
+
+                sprintf(buf, "%d", i + 1);
             strcat(chosen_seat, buf);
             break;
         case PAID:
-            sprintf(buf, ",%d", i);
-            strcat(paid, buf);
+            if (paid[0])
+                sprintf(buf, ",%d", i + 1);
+            else
+                strcat(paid, buf);
             break;
         }
     }
-    if (strlen(chosen_seat))
-        strcpy(chosen_seat, chosen_seat + 1);
-    if (strlen(paid))
-        strcpy(paid, paid + 1);
     sprintf(dest, "\nBooking info\n"
                   "|- Shift ID: %d\n"
                   "|- Chose seat(s): %s\n"
