@@ -5,3 +5,8 @@
 | `make run_servers` | run all servers |
 | `lsof -i`          | list open files |
 | `kill PID`         |                 |
+
+### TODO
+
+- add 5 second timeout
+- add exit command
