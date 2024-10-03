@@ -21,8 +21,7 @@ enum STATE {
     INVALID, // Invalid state
     SHIFT,   // Shift selection
     SEAT,    // Seat selection
-    BOOKED,  // Payment
-    EXIT
+    BOOKED   // Payment
 };
 
 enum SEAT {
@@ -62,23 +61,29 @@ const char *csie_trains_prefix = "./csie_trains/train_";
 train_info *get_train_info(int shift_id) {
     if (shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END)
         return NULL;
+
     char fp[FILE_LEN];
-    struct stat stat_buf;
-    train_info *info = &train_table[shift_id - TRAIN_ID_START];
     memset(fp, 0, sizeof(fp));
     sprintf(fp, "%s%d", csie_trains_prefix, shift_id);
+
+    struct stat stat_buf;
+    train_info *info = &train_table[shift_id - TRAIN_ID_START];
     // set values in info
     strcpy(info->path, fp);
     info->id = shift_id;
     if (stat(fp, &stat_buf) == -1)
         return NULL;
+
     int secdiff = stat_buf.st_mtim.tv_sec - info->least_modify.tv_sec;
     int nsecdiff = stat_buf.st_mtim.tv_nsec - info->least_modify.tv_nsec;
     info->least_modify = stat_buf.st_mtim;
     if (secdiff > 0 || (secdiff == 0 && nsecdiff > 0)) {
         FILE *f = fopen(fp, "r");
         for (int i = 0; i < SEAT_NUM; i++) {
-            fscanf(f, "%d", &info->seat_stat[i]);
+            int status;
+            fscanf(f, "%d", &status);
+            if (info->seat_stat[i] != PAID)
+                info->seat_stat[i] = status;
         }
         fclose(f);
     }
@@ -90,9 +95,9 @@ int write_train_info(train_info *info) {
         return 1; // fail to open
     for (int i = 0; i < SEAT_NUM; i++) {
         if ((i + 1) % 4)
-            fprintf(f, "%d ", info->seat_stat[i]);
+            fprintf(f, "%d ", !!info->seat_stat[i]);
         else
-            fprintf(f, "%d\n", info->seat_stat[i]);
+            fprintf(f, "%d\n", !!info->seat_stat[i]);
     }
     fclose(f);
     struct stat stat_buf;
@@ -105,9 +110,9 @@ int sprint_train_info(char *buf, train_info *info) {
     int len = 0;
     for (int i = 0; i < SEAT_NUM; i++) {
         if ((i + 1) % 4)
-            len += sprintf(buf + len, "%d ", !!info->seat_stat[i]);
+            len += sprintf(buf + len, "%d ", info->seat_stat[i]);
         else
-            len += sprintf(buf + len, "%d\n", !!info->seat_stat[i]);
+            len += sprintf(buf + len, "%d\n", info->seat_stat[i]);
     }
     return 0;
 }
@@ -118,28 +123,25 @@ int sprint_booking_info(char *dest, record rec) {
      * |- Chose seat(s): 1,2
      * |- Paid: 3,4
      */
-    char buf[MAX_MSG_LEN];
-    char chosen_seat[MAX_MSG_LEN] = "";
+    char chosen_seat[MAX_MSG_LEN];
     char paid[MAX_MSG_LEN];
+    int c_len = 0, p_len = 0;
+    memset(chosen_seat, 0, sizeof(chosen_seat));
+    memset(paid, 0, sizeof(paid));
 
-    memset(buf, 0, sizeof(buf));
-    memset(chosen_seat, 0, sizeof(buf));
-    memset(paid, 0, sizeof(buf));
     for (int i = 0; i < SEAT_NUM; i++) {
         switch (rec.seatstats[i]) {
         case CHOSEN:
-            if (chosen_seat[0])
-                sprintf(buf, ",%d", i + 1);
+            if (c_len)
+                c_len += sprintf(chosen_seat + c_len, ",%d", i + 1);
             else
-                sprintf(buf, "%d", i + 1);
-            strcat(chosen_seat, buf);
+                c_len += sprintf(chosen_seat + c_len, "%d", i + 1);
             break;
         case PAID:
-            if (paid[0])
-                sprintf(buf, ",%d", i + 1);
+            if (p_len)
+                p_len += sprintf(paid + p_len, ",%d", i + 1);
             else
-                sprintf(buf, "%d", i + 1);
-            strcat(paid, buf);
+                p_len += sprintf(paid + p_len, "%d", i + 1);
             break;
         }
     }
