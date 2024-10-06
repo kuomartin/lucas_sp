@@ -1,5 +1,4 @@
 #define _GNU_SOURCE
-#include<sys/time.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -9,6 +8,7 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #define TRAIN_NUM 5
@@ -51,7 +51,7 @@ typedef struct {
     size_t buf_len;        // bytes used by buf
     enum STATE status;     // request status
     record booking_info;   // booking status
-    long long start_at;       // connection start time
+    long long start_at;    // connection start time
 } request;
 
 request *req_table = NULL;
@@ -132,6 +132,8 @@ int sprint_booking_info(char *dest, record rec) {
 
     for (int i = 0; i < SEAT_NUM; i++) {
         switch (rec.seatstats[i]) {
+        case FREE:
+            break;
         case CHOSEN:
             if (c_len)
                 c_len += sprintf(chosen_seat + c_len, ",%d", i + 1);
