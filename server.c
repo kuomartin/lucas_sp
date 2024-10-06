@@ -61,7 +61,6 @@ int main(int argc, char **argv) {
     hints.ai_flags = AI_PASSIVE;
     if ((rv = getaddrinfo(NULL, argv[1], &hints, &ai)) != 0) {
         fprintf(stderr, "server: %s\n", gai_strerror(rv));
-        fprintf(stderr, "server: %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -85,7 +84,6 @@ int main(int argc, char **argv) {
     // if we got here, it means we didn't get bound
     if (p == NULL) {
         fprintf(stderr, "server: failed to bind\n");
-        fprintf(stderr, "server: failed to bind\n");
         exit(2);
     }
 
@@ -108,22 +106,13 @@ int main(int argc, char **argv) {
     memset(&timeout,0,sizeof(timeout));
     timeout.tv_usec = 50000;
 
-    // add 0.05 seconds timeout for select
-    struct timeval timeout;
-    memset(&timeout,0,sizeof(timeout));
-    timeout.tv_usec = 50000;
-
     // main loop
     for (;;) {
         read_fds = master; // copy it
         if (select(fdmax + 1, &read_fds, NULL, NULL, &timeout) == -1) {
-        if (select(fdmax + 1, &read_fds, NULL, NULL, &timeout) == -1) {
             perror("select");
             exit(4);
         }
-        struct timeval tv_now;
-        gettimeofday(&tv_now, NULL);
-        long long tv_usec = tv_now.tv_usec + 1000000 * tv_now.tv_sec;
         struct timeval tv_now;
         gettimeofday(&tv_now, NULL);
         long long tv_usec = tv_now.tv_usec + 1000000 * tv_now.tv_sec;
@@ -149,11 +138,6 @@ int main(int argc, char **argv) {
                                                                 get_in_addr((struct sockaddr *)&remoteaddr),
                                                                 remoteIP, INET6_ADDRSTRLEN));
                         printf("server: new connection from %s on "
-                        req_table[newfd].start_at = tv_usec;
-                        strcpy(req_table[newfd].host, inet_ntop(remoteaddr.ss_family,
-                                                                get_in_addr((struct sockaddr *)&remoteaddr),
-                                                                remoteIP, INET6_ADDRSTRLEN));
-                        printf("server: new connection from %s on "
                                "socket %d\n",
                                req_table[newfd].host,
                                newfd);
@@ -166,7 +150,6 @@ int main(int argc, char **argv) {
                         if (nbytes == 0) {
                             // connection closed
                             printf("server: socket %d hung up\n", i);
-                            printf("server: socket %d hung up\n", i);
                             rm_req(i);
                         } else {
                             perror("recv");
@@ -178,7 +161,6 @@ int main(int argc, char **argv) {
                         strcpy(req_table[i].buf, buf);
                         req_table[i].buf_len = nbytes;
                         if (handle_request(&req_table[i]) == -1) {
-                            printf("Client %s exits.\n", req_table[i].host);
                             printf("Client %s exits.\n", req_table[i].host);
                             FD_CLR(i, &master);
                         }
@@ -242,7 +224,6 @@ int handle_request(request *req) {
     char buf[MAX_MSG_LEN], reqbuf[MAX_MSG_LEN], tmpbuf[MAX_MSG_LEN];
     char *endptr;
     int shift_id;
-    int shift_id;
     memset(buf, 0, sizeof(buf));
     strcpy(reqbuf, req->buf);
     reqbuf[strcspn(reqbuf, "\r\n")] = '\0';
@@ -251,10 +232,8 @@ int handle_request(request *req) {
 
     // test for good request
     switch (req->status) {
-    switch (req->status) {
     case INVALID:
         strcat(buf, welcome_banner);
-        req->status = SHIFT;
         req->status = SHIFT;
         break;
     case SHIFT:
@@ -271,7 +250,6 @@ int handle_request(request *req) {
             } else {
                 sprint_booking_info(tmpbuf, req->booking_info);
                 strcat(buf, tmpbuf);
-                req->status = SEAT;
                 req->status = SEAT;
             }
 #elif defined READ_SERVER
@@ -297,7 +275,6 @@ int handle_request(request *req) {
                 int err = write_train_info(tra_info);
                 if (err != 0)
                     exit(-1);
-                req->status = BOOKED;
                 req->status = BOOKED;
             }
         } else {
@@ -342,7 +319,6 @@ int handle_request(request *req) {
         // input "seat" or "exit"
         if (strcmp(reqbuf, "seat") == 0)
             req->status = SEAT;
-            req->status = SEAT;
         else if (strcmp(reqbuf, "exit") == 0) {
             close(req->conn_fd);
             rm_req(req->conn_fd);
@@ -353,7 +329,6 @@ int handle_request(request *req) {
         break;
     }
     // the next question
-    switch (req->status) {
     switch (req->status) {
     case INVALID:
         break;
@@ -388,6 +363,5 @@ int rm_req(int conn_id) {
     write_train_info(info);
     request null_req = {};
     *req = null_req;
-    return 0;
     return 0;
 }
