@@ -4,4 +4,3 @@ write_server
 server
 nohup_pids.txt
 *.log
-csie_trains

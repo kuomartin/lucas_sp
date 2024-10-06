@@ -1,7 +1,3 @@
-/*
-** server.c -- a cheezy multiperson chat server
-*/
-
 #include "server.h"
 
 const char *welcome_banner = "======================================\n"
@@ -64,7 +60,7 @@ int main(int argc, char **argv) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
     if ((rv = getaddrinfo(NULL, argv[1], &hints, &ai)) != 0) {
-        fprintf(stderr, "selectserver: %s\n", gai_strerror(rv));
+        fprintf(stderr, "server: %s\n", gai_strerror(rv));
         exit(1);
     }
 
@@ -87,7 +83,7 @@ int main(int argc, char **argv) {
 
     // if we got here, it means we didn't get bound
     if (p == NULL) {
-        fprintf(stderr, "selectserver: failed to bind\n");
+        fprintf(stderr, "server: failed to bind\n");
         exit(2);
     }
 
@@ -105,13 +101,21 @@ int main(int argc, char **argv) {
     // keep track of the biggest file descriptor
     fdmax = listener; // so far, it's this one
 
+    // add 0.05 seconds timeout for select
+    struct timeval timeout;
+    memset(&timeout,0,sizeof(timeout));
+    timeout.tv_usec = 50000;
+
     // main loop
     for (;;) {
         read_fds = master; // copy it
-        if (select(fdmax + 1, &read_fds, NULL, NULL, NULL) == -1) {
+        if (select(fdmax + 1, &read_fds, NULL, NULL, &timeout) == -1) {
             perror("select");
             exit(4);
         }
+        struct timeval tv_now;
+        gettimeofday(&tv_now, NULL);
+        long long tv_usec = tv_now.tv_usec + 1000000 * tv_now.tv_sec;
 
         // run through the existing connections looking for data to read
         for (i = 0; i <= fdmax; i++) {
@@ -129,10 +133,11 @@ int main(int argc, char **argv) {
                             fdmax = newfd;
                         }
                         req_table[newfd].conn_fd = newfd;
-                        sprintf(req_table[newfd].host, inet_ntop(remoteaddr.ss_family,
-                                                                 get_in_addr((struct sockaddr *)&remoteaddr),
-                                                                 remoteIP, INET6_ADDRSTRLEN));
-                        printf("selectserver: new connection from %s on "
+                        req_table[newfd].start_at = tv_usec;
+                        strcpy(req_table[newfd].host, inet_ntop(remoteaddr.ss_family,
+                                                                get_in_addr((struct sockaddr *)&remoteaddr),
+                                                                remoteIP, INET6_ADDRSTRLEN));
+                        printf("server: new connection from %s on "
                                "socket %d\n",
                                req_table[newfd].host,
                                newfd);
@@ -144,7 +149,7 @@ int main(int argc, char **argv) {
                         // got error or connection closed by client
                         if (nbytes == 0) {
                             // connection closed
-                            printf("selectserver: socket %d hung up\n", i);
+                            printf("server: socket %d hung up\n", i);
                             rm_req(i);
                         } else {
                             perror("recv");
@@ -156,12 +161,22 @@ int main(int argc, char **argv) {
                         strcpy(req_table[i].buf, buf);
                         req_table[i].buf_len = nbytes;
                         if (handle_request(&req_table[i]) == -1) {
-                            printf("client %s exits.\n", req_table[i].host);
+                            printf("Client %s exits.\n", req_table[i].host);
                             FD_CLR(i, &master);
                         }
                     }
                 } // END handle data from client
             } // END got new incoming connection
+            if (FD_ISSET(i, &master) && i != listener) {
+                float tv_diff = (float)(tv_usec - req_table[i].start_at) / 1000000;
+                // 1000000 microseconds = 1 second
+                if (tv_diff > 5) {
+                    close(i);
+                    printf("Timeout: client %s closed in %f.\n", req_table[i].host, tv_diff);
+                    FD_CLR(i, &master);
+                    rm_req(i);
+                }
+            }
         } // END looping through file descriptors
     } // END for(;;)--and you thought it would never end!
 
@@ -208,7 +223,7 @@ int init_req_table(void) {
 int handle_request(request *req) {
     char buf[MAX_MSG_LEN], reqbuf[MAX_MSG_LEN], tmpbuf[MAX_MSG_LEN];
     char *endptr;
-    int status = req->status;
+    int shift_id;
     memset(buf, 0, sizeof(buf));
     strcpy(reqbuf, req->buf);
     reqbuf[strcspn(reqbuf, "\r\n")] = '\0';
@@ -216,14 +231,13 @@ int handle_request(request *req) {
     req->buf_len = 0;
 
     // test for good request
-    switch (status) {
+    switch (req->status) {
     case INVALID:
         strcat(buf, welcome_banner);
-        status = SHIFT;
+        req->status = SHIFT;
         break;
     case SHIFT:
         // input shift id
-        int shift_id;
         shift_id = strtol(reqbuf, &endptr, 10);
         if (*endptr != '\0' || shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END) {
             strcat(buf, invalid_op_msg);
@@ -236,7 +250,7 @@ int handle_request(request *req) {
             } else {
                 sprint_booking_info(tmpbuf, req->booking_info);
                 strcat(buf, tmpbuf);
-                status = SEAT;
+                req->status = SEAT;
             }
 #elif defined READ_SERVER
             train_info *info = get_train_info(shift_id);
@@ -261,7 +275,7 @@ int handle_request(request *req) {
                 int err = write_train_info(tra_info);
                 if (err != 0)
                     exit(-1);
-                status = BOOKED;
+                req->status = BOOKED;
             }
         } else {
             char *endptr;
@@ -304,7 +318,7 @@ int handle_request(request *req) {
     case BOOKED:
         // input "seat" or "exit"
         if (strcmp(reqbuf, "seat") == 0)
-            status = SEAT;
+            req->status = SEAT;
         else if (strcmp(reqbuf, "exit") == 0) {
             close(req->conn_fd);
             rm_req(req->conn_fd);
@@ -315,7 +329,7 @@ int handle_request(request *req) {
         break;
     }
     // the next question
-    switch (status) {
+    switch (req->status) {
     case INVALID:
         break;
     case SHIFT:
@@ -333,7 +347,6 @@ int handle_request(request *req) {
         break;
     }
     int len = strlen(buf);
-    req->status = status;
     send(req->conn_fd, buf, len, 0);
     // printf("%s is on status %d\n", req->host, req->status);
     return 0;
@@ -350,4 +363,5 @@ int rm_req(int conn_id) {
     write_train_info(info);
     request null_req = {};
     *req = null_req;
+    return 0;
 }

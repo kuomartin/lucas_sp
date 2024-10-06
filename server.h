@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include<sys/time.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -50,7 +51,7 @@ typedef struct {
     size_t buf_len;        // bytes used by buf
     enum STATE status;     // request status
     record booking_info;   // booking status
-    time_t start_at;       // connection remaining time
+    long long start_at;       // connection start time
 } request;
 
 request *req_table = NULL;
