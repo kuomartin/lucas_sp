@@ -3,3 +3,4 @@ write_server
 .vscode
 server
 *.log
+csie_trains/
