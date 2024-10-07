@@ -143,6 +143,7 @@ int main(int argc, char **argv) {
                                req_table[newfd].host,
                                newfd);
                         handle_request(&req_table[newfd]);
+                        send(req_table[newfd].conn_fd, req_table[newfd].buf, req_table[newfd].buf_len, 0);
                     }
                 } else {
                     // handle data from a client
@@ -162,11 +163,18 @@ int main(int argc, char **argv) {
                         strcpy(req_table[i].buf, buf);
                         req_table[i].buf_len = nbytes;
                         int exit_code = handle_request(&req_table[i]);
-                        if (exit_code == -1){
+                        send(req_table[i].conn_fd, req_table[i].buf, req_table[i].buf_len, 0);
+                        switch (exit_code) {
+                        case -2:
+                            printf("Client %s invalid operation.\n", req_table[i].host);
+                        case -1:
                             printf("Client %s exits.\n", req_table[i].host);
                             FD_CLR(i, &master);
                             close(i);
                             rm_req(i);
+                            break;
+                        default:
+                            break;
                         }
                     }
                 } // END handle data from client
@@ -213,7 +221,6 @@ int init_train_table(void) {
         }
         if (stat(fp, &stat_buf) == -1)
             return -1;
-
         train_table[i].least_modify = stat_buf.st_mtim;
         train_table[i].id = shift_id;
         strcpy(train_table[i].path, fp);
@@ -242,7 +249,6 @@ int handle_request(request *req) {
         strcat(buf, exit_msg);
         strcpy(req->buf, buf);
         req->buf_len = strlen(buf);
-        send(req->conn_fd, buf, strlen(buf), 0);
         return -1;
     }
     // test for good request
@@ -256,8 +262,9 @@ int handle_request(request *req) {
         shift_id = strtol(reqbuf, &endptr, 10);
         if (*endptr != '\0' || shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END) {
             strcat(buf, invalid_op_msg);
-            send(req->conn_fd, buf, strlen(buf), 0);
-            return -1;
+            strcpy(req->buf, buf);
+            req->buf_len = strlen(buf);
+            return -2;
         } else {
             // it's a valid shift id
 #ifdef WRITE_SERVER
@@ -301,8 +308,9 @@ int handle_request(request *req) {
             seat = strtol(reqbuf, &endptr, 10);
             if (*endptr != '\0' || seat < 1 || seat > SEAT_NUM) {
                 strcat(buf, invalid_op_msg);
-                send(req->conn_fd, buf, strlen(buf), 0);
-                return -1;
+                strcpy(req->buf, buf);
+                req->buf_len = strlen(buf);
+                return -2;
             } else {
                 // select a valid seat id
                 seat--;
@@ -341,8 +349,9 @@ int handle_request(request *req) {
             req->status = SEAT;
         else {
             strcat(buf, invalid_op_msg);
-            send(req->conn_fd, buf, strlen(buf), 0);
-            return -1;
+            strcpy(req->buf, buf);
+            req->buf_len = strlen(buf);
+            return -2;
         }
         break;
     }
@@ -364,7 +373,11 @@ int handle_request(request *req) {
         strcat(buf, write_seat_or_exit_msg);
         break;
     }
-    // printf("%s is on status %d\n", req->host, req->status);
+
+    strcpy(req->buf, buf);
+    req->buf_len = strlen(buf);
+    printf("%s sends %s\n", req->host, req->buf);
+    printf("buff len %d\n", (int)req->buf_len);
     return 0;
 }
 
