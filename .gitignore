@@ -4,3 +4,4 @@ write_server
 server
 *.log
 csie_trains/
+.nfs*
