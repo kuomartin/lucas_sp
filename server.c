@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
 
     // add 0.05 seconds timeout for select
     struct timeval timeout;
-    memset(&timeout,0,sizeof(timeout));
+    memset(&timeout, 0, sizeof(timeout));
     timeout.tv_usec = 50000;
 
     // main loop
@@ -161,9 +161,19 @@ int main(int argc, char **argv) {
                         // we got some data from a client
                         strcpy(req_table[i].buf, buf);
                         req_table[i].buf_len = nbytes;
-                        if (handle_request(&req_table[i]) == -1) {
+                        int exit_code = handle_request(&req_table[i]);
+                        send(req_table[i].conn_fd, req_table[i].buf, req_table[i].buf_len, 0);
+                        switch (exit_code) {
+                        case -2:
+                            printf("Client %s invalid operation.\n", req_table[i].host);
+                        case -1:
                             printf("Client %s exits.\n", req_table[i].host);
                             FD_CLR(i, &master);
+                            close(i);
+                            rm_req(i);
+                            break;
+                        default:
+                            break;
                         }
                     }
                 } // END handle data from client
@@ -236,10 +246,8 @@ int handle_request(request *req) {
 
     if (strcmp(reqbuf, "exit") == 0) {
         strcat(buf, exit_msg);
-        int len = strlen(buf);
-        send(req->conn_fd, buf, len, 0);
-        close(req->conn_fd);
-        rm_req(req->conn_fd);
+        strcpy(req->buf, buf);
+        req->buf_len = strlen(buf);
         return -1;
     }
     // test for good request
@@ -253,6 +261,7 @@ int handle_request(request *req) {
         shift_id = strtol(reqbuf, &endptr, 10);
         if (*endptr != '\0' || shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END) {
             strcat(buf, invalid_op_msg);
+            return -2;
         } else {
             // it's a valid shift id
 #ifdef WRITE_SERVER
@@ -296,6 +305,7 @@ int handle_request(request *req) {
             seat = strtol(reqbuf, &endptr, 10);
             if (*endptr != '\0' || seat < 1 || seat > SEAT_NUM) {
                 strcat(buf, invalid_op_msg);
+                return -2;
             } else {
                 // select a valid seat id
                 seat--;
@@ -334,6 +344,7 @@ int handle_request(request *req) {
             req->status = SEAT;
         else {
             strcat(buf, invalid_op_msg);
+            return -2;
         }
         break;
     }
@@ -355,8 +366,6 @@ int handle_request(request *req) {
         strcat(buf, write_seat_or_exit_msg);
         break;
     }
-    int len = strlen(buf);
-    send(req->conn_fd, buf, len, 0);
     // printf("%s is on status %d\n", req->host, req->status);
     return 0;
 }
