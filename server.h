@@ -75,9 +75,9 @@ train_info *get_train_info(int shift_id) {
     if (stat(fp, &stat_buf) == -1)
         return NULL;
 
-    int secdiff = stat_buf.st_mtim.tv_sec - info->least_modify.tv_sec;
-    int nsecdiff = stat_buf.st_mtim.tv_nsec - info->least_modify.tv_nsec;
-    info->least_modify = stat_buf.st_mtim;
+    int secdiff = stat_buf.st_mtimespec.tv_sec - info->least_modify.tv_sec;
+    int nsecdiff = stat_buf.st_mtimespec.tv_nsec - info->least_modify.tv_nsec;
+    info->least_modify = stat_buf.st_mtimespec;
     if (secdiff > 0 || (secdiff == 0 && nsecdiff > 0)) {
         FILE *f = fopen(fp, "r");
         for (int i = 0; i < SEAT_NUM; i++) {
@@ -104,7 +104,7 @@ int write_train_info(train_info *info) {
     struct stat stat_buf;
     if (stat(info->path, &stat_buf) == -1)
         return 2;
-    info->least_modify = stat_buf.st_mtim;
+    info->least_modify = stat_buf.st_mtimespec;
     return 0;
 }
 int sprint_train_info(char *buf, train_info *info) {

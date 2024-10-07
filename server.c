@@ -49,6 +49,7 @@ int main(int argc, char **argv) {
     int i, j, rv;
 
     struct addrinfo hints, *ai, *p;
+    init_train_table();
     init_req_table();
 
     FD_ZERO(&master); // clear the master and temp sets
@@ -167,6 +168,7 @@ int main(int argc, char **argv) {
                     }
                 } // END handle data from client
             } // END got new incoming connection
+#ifndef FAST
             if (FD_ISSET(i, &master) && i != listener) {
                 float tv_diff = (float)(tv_usec - req_table[i].start_at) / 1000000;
                 // 1000000 microseconds = 1 second
@@ -177,6 +179,7 @@ int main(int argc, char **argv) {
                     rm_req(i);
                 }
             }
+#endif
         } // END looping through file descriptors
     } // END for(;;)--and you thought it would never end!
 
@@ -203,10 +206,11 @@ int init_train_table(void) {
         FILE *f = fopen(fp, "r");
         for (j = 0; j < SEAT_NUM; j++) {
             fscanf(f, "%d", &train_table[i].seat_stat[j]);
+            train_table[i].seat_stat[j] *= 2;
         }
         if (stat(fp, &stat_buf) == -1)
             return -1;
-        train_table[i].least_modify = stat_buf.st_mtim;
+        train_table[i].least_modify = stat_buf.st_mtimespec;
         train_table[i].id = shift_id;
         strcpy(train_table[i].path, fp);
     }
@@ -230,6 +234,14 @@ int handle_request(request *req) {
     memset(req->buf, 0, sizeof(reqbuf));
     req->buf_len = 0;
 
+    if (strcmp(reqbuf, "exit") == 0) {
+        strcat(buf, exit_msg);
+        int len = strlen(buf);
+        send(req->conn_fd, buf, len, 0);
+        close(req->conn_fd);
+        rm_req(req->conn_fd);
+        return -1;
+    }
     // test for good request
     switch (req->status) {
     case INVALID:
@@ -316,14 +328,10 @@ int handle_request(request *req) {
         strcat(buf, tmpbuf);
         break;
     case BOOKED:
-        // input "seat" or "exit"
+        // input "seat"
         if (strcmp(reqbuf, "seat") == 0)
             req->status = SEAT;
-        else if (strcmp(reqbuf, "exit") == 0) {
-            close(req->conn_fd);
-            rm_req(req->conn_fd);
-            return -1;
-        } else {
+        else {
             strcat(buf, invalid_op_msg);
         }
         break;

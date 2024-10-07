@@ -10,3 +10,7 @@ clean:
 run_servers: all
 	nohup ./write_server 9034 > write_server.log 2>&1 &
 	nohup ./read_server 9033 > read_server.log 2>&1 &
+
+test: clean
+	gcc server.c -D WRITE_SERVER -D FAST -o write_server
+	gcc server.c -D READ_SERVER -D FAST -o read_server
