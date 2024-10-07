@@ -1,7 +1,0 @@
-Trying 127.0.0.1...
-Connected to localhost.
-Escape character is '^]'.
-======================================
- Welcome to CSIE Train Booking System 
-======================================
-Please select the shift_id you want to check [902001-902005]: 
