@@ -22,14 +22,20 @@ int maxReq; // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa);
 int init_req_table(void);
 int init_train_table(void);
-int handle_request(request *req);
+int handle_request(request *req, char *input, char *output);
+int call_handle(request *req);
 int rm_req(int conn_fd);
 
 int main(int argc, char **argv) {
     // Parse args.
+    char zero[2] = "0";
+    char *port;
+    port = zero;
     if (argc != 2) {
         fprintf(stderr, "usage: %s [port]\n", argv[0]);
-        exit(1);
+        // exit(1);
+    } else {
+        port = argv[1];
     }
     fd_set master;   // master file descriptor list
     fd_set read_fds; // temp file descriptor list for select()
@@ -60,7 +66,7 @@ int main(int argc, char **argv) {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    if ((rv = getaddrinfo(NULL, argv[1], &hints, &ai)) != 0) {
+    if ((rv = getaddrinfo(NULL, port, &hints, &ai)) != 0) {
         fprintf(stderr, "server: %s\n", gai_strerror(rv));
         exit(1);
     }
@@ -142,8 +148,8 @@ int main(int argc, char **argv) {
                                "socket %d\n",
                                req_table[newfd].host,
                                newfd);
-                        handle_request(&req_table[newfd]);
-                        send(req_table[newfd].conn_fd, req_table[newfd].buf, req_table[newfd].buf_len, 0);
+                        call_handle(&req_table[newfd]);
+                        send(req_table[newfd].conn_fd, req_table[newfd].buf, strlen(req_table[newfd].buf), 0);
                     }
                 } else {
                     // handle data from a client
@@ -162,8 +168,8 @@ int main(int argc, char **argv) {
                         // we got some data from a client
                         strcpy(req_table[i].buf, buf);
                         req_table[i].buf_len = nbytes;
-                        int exit_code = handle_request(&req_table[i]);
-                        send(req_table[i].conn_fd, req_table[i].buf, req_table[i].buf_len, 0);
+                        int exit_code = call_handle(&req_table[i]);
+                        send(req_table[i].conn_fd, req_table[i].buf, strlen(req_table[i].buf), 0);
                         switch (exit_code) {
                         case -2:
                             printf("Client %s invalid operation.\n", req_table[i].host);
@@ -235,20 +241,13 @@ int init_req_table(void) {
     memset(req_table, 0, sizeof(request) * maxReq);
     return 0;
 }
-int handle_request(request *req) {
-    char buf[MAX_MSG_LEN], reqbuf[MAX_MSG_LEN], tmpbuf[MAX_MSG_LEN];
+int handle_request(request *req, char *input, char *buf) {
+    char tmpbuf[MAX_MSG_LEN];
     char *endptr;
     int shift_id;
-    memset(buf, 0, sizeof(buf));
-    strcpy(reqbuf, req->buf);
-    reqbuf[strcspn(reqbuf, "\r\n")] = '\0';
-    memset(req->buf, 0, sizeof(reqbuf));
-    req->buf_len = 0;
 
-    if (strcmp(reqbuf, "exit") == 0) {
+    if (strcmp(input, "exit") == 0) {
         strcat(buf, exit_msg);
-        strcpy(req->buf, buf);
-        req->buf_len = strlen(buf);
         return -1;
     }
     // test for good request
@@ -259,11 +258,9 @@ int handle_request(request *req) {
         break;
     case SHIFT:
         // input shift id
-        shift_id = strtol(reqbuf, &endptr, 10);
+        shift_id = strtol(input, &endptr, 10);
         if (*endptr != '\0' || shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END) {
             strcat(buf, invalid_op_msg);
-            strcpy(req->buf, buf);
-            req->buf_len = strlen(buf);
             return -2;
         } else {
             // it's a valid shift id
@@ -285,7 +282,7 @@ int handle_request(request *req) {
         break;
     case SEAT:
         // input seat id or "pay"
-        if (strcmp(reqbuf, "pay") == 0) {
+        if (strcmp(input, "pay") == 0) {
             if (req->booking_info.num_chosen == 0) {
                 strcat(buf, no_seat_msg);
             } else {
@@ -305,11 +302,9 @@ int handle_request(request *req) {
         } else {
             char *endptr;
             int seat;
-            seat = strtol(reqbuf, &endptr, 10);
+            seat = strtol(input, &endptr, 10);
             if (*endptr != '\0' || seat < 1 || seat > SEAT_NUM) {
                 strcat(buf, invalid_op_msg);
-                strcpy(req->buf, buf);
-                req->buf_len = strlen(buf);
                 return -2;
             } else {
                 // select a valid seat id
@@ -345,12 +340,10 @@ int handle_request(request *req) {
         break;
     case BOOKED:
         // input "seat"
-        if (strcmp(reqbuf, "seat") == 0)
+        if (strcmp(input, "seat") == 0)
             req->status = SEAT;
         else {
             strcat(buf, invalid_op_msg);
-            strcpy(req->buf, buf);
-            req->buf_len = strlen(buf);
             return -2;
         }
         break;
@@ -373,11 +366,7 @@ int handle_request(request *req) {
         strcat(buf, write_seat_or_exit_msg);
         break;
     }
-
-    strcpy(req->buf, buf);
-    req->buf_len = strlen(buf);
-    printf("%s sends %s\n", req->host, req->buf);
-    printf("buff len %d\n", (int)req->buf_len);
+    // printf("%s sends %s\n", req->host, req->buf);
     return 0;
 }
 
@@ -392,5 +381,35 @@ int rm_req(int conn_id) {
     write_train_info(info);
     request null_req = {};
     *req = null_req;
+    return 0;
+}
+
+int call_handle(request *req) {
+    char recv_str[MAX_MSG_LEN];
+    strcpy(recv_str, req->buf);
+    *req->buf = '\0';
+    int recv_len = strlen(recv_str);
+
+    char *start_p = recv_str;
+    if (req->status == INVALID) {
+        handle_request(req, start_p, req->buf);
+    }
+    // char *p = start_p;
+    int i;
+    for (i = 0; i < recv_len; i++) {
+        i += strcspn(recv_str + i, "\r\n");
+        if (recv_str[i] == '\r') {
+            recv_str[i] = '\0';
+            i++;
+        }
+        recv_str[i] = '\0';
+        if (strlen(start_p) == 0)
+            continue;
+        int exitcode = handle_request(req, start_p, req->buf);
+        if (exitcode != 0) {
+            return exitcode;
+        }
+        start_p = recv_str + i;
+    }
     return 0;
 }
