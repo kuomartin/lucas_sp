@@ -28,14 +28,9 @@ int rm_req(int conn_fd);
 
 int main(int argc, char **argv) {
     // Parse args.
-    char zero[2] = "0";
-    char *port;
-    port = zero;
     if (argc != 2) {
         fprintf(stderr, "usage: %s [port]\n", argv[0]);
         exit(1);
-    } else {
-        port = argv[1];
     }
     fd_set master;   // master file descriptor list
     fd_set read_fds; // temp file descriptor list for select()
@@ -66,7 +61,7 @@ int main(int argc, char **argv) {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    if ((rv = getaddrinfo(NULL, port, &hints, &ai)) != 0) {
+    if ((rv = getaddrinfo(NULL, argv[1], &hints, &ai)) != 0) {
         fprintf(stderr, "server: %s\n", gai_strerror(rv));
         exit(1);
     }
@@ -198,6 +193,7 @@ int main(int argc, char **argv) {
             }
 #endif
         } // END looping through file descriptors
+        fflush(stdout);
     } // END for(;;)--and you thought it would never end!
 
     return 0;
