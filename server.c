@@ -277,6 +277,7 @@ int handle_request(request *req) {
             if (req->booking_info.num_chosen == 0) {
                 strcat(buf, no_seat_msg);
             } else {
+                strcat(buf, book_succ_msg);
                 train_info *tra_info = get_train_info(req->booking_info.shift_id);
                 for (int i = 0; i < SEAT_NUM; i++) {
                     if (req->booking_info.seatstats[i] == CHOSEN) {
