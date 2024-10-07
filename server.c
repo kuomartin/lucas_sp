@@ -210,7 +210,7 @@ int init_train_table(void) {
         }
         if (stat(fp, &stat_buf) == -1)
             return -1;
-        train_table[i].least_modify = stat_buf.st_mtimespec;
+        train_table[i].least_modify = stat_buf.st_mtim;
         train_table[i].id = shift_id;
         strcpy(train_table[i].path, fp);
     }
