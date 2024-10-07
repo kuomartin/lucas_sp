@@ -110,9 +110,9 @@ int sprint_train_info(char *buf, train_info *info) {
     int len = 0;
     for (int i = 0; i < SEAT_NUM; i++) {
         if ((i + 1) % 4)
-            len += sprintf(buf + len, "%d ", info->seat_stat[i]);
+            len += sprintf(buf + len, "%d ", !!info->seat_stat[i]);
         else
-            len += sprintf(buf + len, "%d\n", info->seat_stat[i]);
+            len += sprintf(buf + len, "%d\n", !!info->seat_stat[i]);
     }
     return 0;
 }
