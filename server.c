@@ -296,6 +296,7 @@ int handle_request(request *req, char *input, char *buf) {
                         req->booking_info.seatstats[i] = PAID;
                     }
                 }
+                req->booking_info.num_chosen = 0;
                 int err = write_train_info(tra_info);
                 if (err != 0)
                     exit(-1);
@@ -348,6 +349,8 @@ int handle_request(request *req, char *input, char *buf) {
             strcat(buf, invalid_op_msg);
             return -2;
         }
+        sprint_booking_info(tmpbuf, req->booking_info);
+        strcat(buf, tmpbuf);
         break;
     }
     // the next question
