@@ -5,3 +5,5 @@ server
 *.log
 csie_trains/
 .nfs*
+*.out
+*.in

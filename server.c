@@ -11,7 +11,7 @@ const char *welcome_banner = "======================================\n"
 const char *lock_msg = ">>> Locked.\n";
 const char *exit_msg = ">>> Client exit.\n";
 const char *cancel_msg = ">>> You cancel the seat.\n";
-const char *full_msg = ">>> The shift_id is fully booked.\n";
+const char *full_msg = ">>> The shift is fully booked.\n";
 const char *seat_booked_msg = ">>> The seat is booked.\n";
 const char *no_seat_msg = ">>> No seat to pay.\n";
 const char *book_succ_msg = ">>> Your train booking is successful.\n";
