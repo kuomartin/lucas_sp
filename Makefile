@@ -5,9 +5,8 @@ ifeq (test,$(firstword $(MAKECMDGOALS)))
 	test=true
 endif
 
-ifdef test
-	defs = -D TEST
-endif
+
+defs=$(if &(test),-D TEST)
 
 NC='\033[0m'
 Black='\033[0;30m'
@@ -55,10 +54,10 @@ kill: rpids:=$(shell ps -aux | grep read_server | grep -v grep | awk '{print $$2
 kill:
 	@echo -e $(Red)kill:$(NC)
 	$(if $(and $(rpids),$(wpids)),,@echo nothing to kill!)
-	$(if $(rpids),kill -9 $(rpids))
-	$(if $(wpids),kill -9 $(wpids))
+	$(if $(rpids),-kill -9 $(rpids) 2>/dev/null)
+	$(if $(wpids),-kill -9 $(wpids) 2>/dev/null)
 	@echo
-test:
+test: kill all
 	@echo -e $(Blue)test: remove timeout$(NC)
 ifeq ($(words $(MAKECMDGOALS)),1)
 	@$(MAKE) test=true all

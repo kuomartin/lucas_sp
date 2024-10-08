@@ -162,6 +162,8 @@ int main(int argc, char **argv) {
                     } else {
                         // we got some data from a client
                         strcpy(req_table[i].buf, buf);
+                        printf("%s says: '''%s'''\n",req_table[i].host,buf);
+                        memset(buf,0,sizeof(buf));
                         req_table[i].buf_len = nbytes;
                         int exit_code = call_handle(&req_table[i]);
                         send(req_table[i].conn_fd, req_table[i].buf, strlen(req_table[i].buf), 0);
@@ -383,6 +385,15 @@ int rm_req(int conn_id) {
 int call_handle(request *req) {
     char recv_str[MAX_MSG_LEN];
     strcpy(recv_str, req->buf);
+    char* pch = NULL;
+
+    pch = strtok(recv_str, "\n");
+    do{
+
+        printf("%s\n", pch);
+        pch = strtok(NULL, "\r\n");
+    }    while (pch != NULL);
+    return 0;
     *req->buf = '\0';
     int recv_len = strlen(recv_str);
 
