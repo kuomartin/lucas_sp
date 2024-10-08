@@ -1,5 +1,9 @@
 #include "server.h"
 
+#ifndef TEST
+#define TEST
+#endif
+
 const char *welcome_banner = "======================================\n"
                              " Welcome to CSIE Train Booking System \n"
                              "======================================\n";
@@ -13,8 +17,8 @@ const char *no_seat_msg = ">>> No seat to pay.\n";
 const char *book_succ_msg = ">>> Your train booking is successful.\n";
 const char *invalid_op_msg = ">>> Invalid operation.\n";
 
-char *read_shift_msg = "Please select the shift_id you want to check [902001-902005]: ";
-char *write_shift_msg = "Please select the shift_id you want to book [902001-902005]: ";
+char *read_shift_msg = "Please select the shift you want to check [902001-902005]: ";
+char *write_shift_msg = "Please select the shift you want to book [902001-902005]: ";
 char *write_seat_msg = "Select the seat [1-40] or type \"pay\" to confirm: ";
 char *write_seat_or_exit_msg = "Type \"seat\" to continue or \"exit\" to quit [seat/exit]: ";
 
@@ -143,7 +147,7 @@ int main(int argc, char **argv) {
                                "socket %d\n",
                                req_table[newfd].host,
                                newfd);
-                        call_handle(&req_table[newfd]);
+                        handle_request(&req_table[newfd], NULL, (req_table[newfd].buf));
                         send(req_table[newfd].conn_fd, req_table[newfd].buf, strlen(req_table[newfd].buf), 0);
                     }
                 } else {
@@ -162,8 +166,8 @@ int main(int argc, char **argv) {
                     } else {
                         // we got some data from a client
                         strcpy(req_table[i].buf, buf);
-                        printf("%s says: '''%s'''\n",req_table[i].host,buf);
-                        memset(buf,0,sizeof(buf));
+                        printf("%s says: '''%s'''\n", req_table[i].host, buf);
+                        memset(buf, 0, sizeof(buf));
                         req_table[i].buf_len = nbytes;
                         int exit_code = call_handle(&req_table[i]);
                         send(req_table[i].conn_fd, req_table[i].buf, strlen(req_table[i].buf), 0);
@@ -244,12 +248,13 @@ int handle_request(request *req, char *input, char *buf) {
     char *endptr;
     int shift_id;
 
-    if (strcmp(input, "exit") == 0) {
+    if (input != NULL && strcmp(input, "exit") == 0) {
         strcat(buf, exit_msg);
         return -1;
     }
     // test for good request
     switch (req->status) {
+
     case INVALID:
         strcat(buf, welcome_banner);
         req->status = SHIFT;
@@ -384,39 +389,19 @@ int rm_req(int conn_id) {
 
 int call_handle(request *req) {
     char recv_str[MAX_MSG_LEN];
+    int exit_code;
     strcpy(recv_str, req->buf);
-    char* pch = NULL;
+    memset(req->buf, 0, sizeof(req->buf));
+    char *pch = NULL;
 
     pch = strtok(recv_str, "\n");
-    do{
-
-        printf("%s\n", pch);
-        pch = strtok(NULL, "\r\n");
-    }    while (pch != NULL);
-    return 0;
-    *req->buf = '\0';
-    int recv_len = strlen(recv_str);
-
-    char *start_p = recv_str;
-    if (req->status == INVALID) {
-        handle_request(req, start_p, req->buf);
-    }
-    // char *p = start_p;
-    int i;
-    for (i = 0; i < recv_len; i++) {
-        i += strcspn(recv_str + i, "\r\n");
-        if (recv_str[i] == '\r') {
-            recv_str[i] = '\0';
-            i++;
-        }
-        recv_str[i] = '\0';
-        if (strlen(start_p) == 0)
+    while (pch != NULL) {
+        if (strlen(pch) == 0)
             continue;
-        int exitcode = handle_request(req, start_p, req->buf);
-        if (exitcode != 0) {
-            return exitcode;
-        }
-        start_p = recv_str + i;
-    }
+        exit_code = handle_request(req, pch, req->buf);
+        if (exit_code)
+            return exit_code;
+        pch = strtok(NULL, "\n");
+    };
     return 0;
 }
