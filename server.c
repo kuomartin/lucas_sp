@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
                     }
                 } // END handle data from client
             } // END got new incoming connection
-#ifndef FAST
+#ifndef TEST
             if (FD_ISSET(i, &master) && i != listener) {
                 float tv_diff = (float)(tv_usec - req_table[i].start_at) / 1000000;
                 // 1000000 microseconds = 1 second
