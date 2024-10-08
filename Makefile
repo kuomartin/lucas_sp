@@ -5,8 +5,7 @@ ifeq (test,$(firstword $(MAKECMDGOALS)))
 	test=true
 endif
 
-
-defs=$(if &(test),-D TEST)
+defs=$(if $(test),-D TEST,)
 
 NC='\033[0m'
 Black='\033[0;30m'
@@ -36,8 +35,8 @@ clean:
 	@$(if $(useless),,echo nothing to clean!)
 	@$(foreach x,$(useless), echo remove ./$(x) ; rm $(x);)
 
-run: write_server read_server
-	@echo  -e $(Purple)run server:$(NC)
+run-no-kill: write_server read_server
+	@echo -e $(Purple)run server:$(NC)
 	$(runner) ./write_server $(wp) > write_server.log 2>&1 &
 	$(runner) ./read_server $(rp) > read_server.log 2>&1 &
 	@echo 
@@ -45,7 +44,7 @@ run: write_server read_server
 	@echo
 	@echo \'$(conn) localhost $(wp)\' to connect write_server.
 	@echo \'$(conn) localhost $(rp)\' to connect read_erver.
-
+run: kill run-no-kill
 run-nohup: runner=nohup
 run-nohup: run
 
@@ -57,7 +56,7 @@ kill:
 	$(if $(rpids),-kill -9 $(rpids) 2>/dev/null)
 	$(if $(wpids),-kill -9 $(wpids) 2>/dev/null)
 	@echo
-test: kill all
+test: clean
 	@echo -e $(Blue)test: remove timeout$(NC)
 ifeq ($(words $(MAKECMDGOALS)),1)
 	@$(MAKE) test=true all

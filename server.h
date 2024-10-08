@@ -34,6 +34,7 @@ enum SEAT {
 typedef struct {
     int id;
     char path[FILE_LEN];
+    char _path[FILE_LEN];
     enum SEAT seat_stat[SEAT_NUM];
     struct timespec least_modify;
 } train_info;
@@ -58,61 +59,70 @@ request *req_table = NULL;
 train_info train_table[TRAIN_NUM];
 
 const char *csie_trains_prefix = "./csie_trains/train_";
+const char *_csie_trains_prefix = "./csie_trains/_train_";
 
 train_info *get_train_info(int shift_id) {
     if (shift_id < TRAIN_ID_START || shift_id > TRAIN_ID_END)
         return NULL;
 
-    char fp[FILE_LEN];
-    memset(fp, 0, sizeof(fp));
-    sprintf(fp, "%s%d", csie_trains_prefix, shift_id);
+    char _fp[FILE_LEN];
+    memset(_fp, 0, sizeof(_fp));
 
     struct stat stat_buf;
     train_info *info = &train_table[shift_id - TRAIN_ID_START];
     // set values in info
-    strcpy(info->path, fp);
+    strcpy(_fp, info->_path);
     info->id = shift_id;
-    if (stat(fp, &stat_buf) == -1)
+    if (stat(_fp, &stat_buf) == -1)
         return NULL;
     int secdiff = stat_buf.st_mtim.tv_sec - info->least_modify.tv_sec;
     int nsecdiff = stat_buf.st_mtim.tv_nsec - info->least_modify.tv_nsec;
     info->least_modify = stat_buf.st_mtim;
     if (secdiff > 0 || (secdiff == 0 && nsecdiff > 0)) {
-        FILE *f = fopen(fp, "r");
+        FILE *_f = fopen(_fp, "r");
         for (int i = 0; i < SEAT_NUM; i++) {
             int status;
-            fscanf(f, "%d", &status);
-            if (info->seat_stat[i] != PAID)
-                info->seat_stat[i] = status;
+            fscanf(_f, "%d", &status);
+            info->seat_stat[i] = status;
         }
-        fclose(f);
+        fclose(_f);
     }
     return info;
 }
 int write_train_info(train_info *info) {
     FILE *f = fopen(info->path, "w");
-    if (f == NULL)
+    FILE *_f = fopen(info->_path, "w");
+
+    if (f == NULL || _f == NULL)
         return 1; // fail to open
     for (int i = 0; i < SEAT_NUM; i++) {
-        if ((i + 1) % 4)
+        if ((i + 1) % 4) {
             fprintf(f, "%d ", !!info->seat_stat[i]);
-        else
+            fprintf(_f, "%d ", info->seat_stat[i]);
+        } else {
             fprintf(f, "%d\n", !!info->seat_stat[i]);
+            fprintf(_f, "%d\n", info->seat_stat[i]);
+        }
     }
     fclose(f);
+    fclose(_f);
     struct stat stat_buf;
-    if (stat(info->path, &stat_buf) == -1)
+    if (stat(info->_path, &stat_buf) == -1)
         return 2;
     info->least_modify = stat_buf.st_mtim;
     return 0;
 }
 int sprint_train_info(char *buf, train_info *info) {
     int len = 0;
+    int p_state;
     for (int i = 0; i < SEAT_NUM; i++) {
+        p_state = info->seat_stat[i];
+        if (p_state)
+            p_state = 3 - p_state;
         if ((i + 1) % 4)
-            len += sprintf(buf + len, "%d ", !!info->seat_stat[i]);
+            len += sprintf(buf + len, "%d ", p_state);
         else
-            len += sprintf(buf + len, "%d\n", !!info->seat_stat[i]);
+            len += sprintf(buf + len, "%d\n", p_state);
     }
     return 0;
 }

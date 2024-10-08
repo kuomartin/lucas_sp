@@ -3,6 +3,9 @@
 #ifndef TEST
 #define TEST
 #endif
+#ifndef READ_SERVER
+#define READ_SERVER
+#endif
 
 const char *welcome_banner = "======================================\n"
                              " Welcome to CSIE Train Booking System \n"
@@ -214,23 +217,38 @@ void *get_in_addr(struct sockaddr *sa) {
 
 int init_train_table(void) {
     int shift_id, i, j;
-    char fp[FILE_LEN];
+    char fp[FILE_LEN], _fp[FILE_LEN];
     struct stat stat_buf;
     memset(fp, 0, sizeof(fp));
+    memset(_fp, 0, sizeof(_fp));
 
     for (i = 0; i < TRAIN_NUM; i++) {
         shift_id = TRAIN_ID_START + i;
         sprintf(fp, "%s%d", csie_trains_prefix, shift_id);
+        sprintf(_fp, "%s%d", _csie_trains_prefix, shift_id);
         FILE *f = fopen(fp, "r");
+        FILE *_f = fopen(_fp, "w");
         for (j = 0; j < SEAT_NUM; j++) {
             fscanf(f, "%d", &train_table[i].seat_stat[j]);
             train_table[i].seat_stat[j] *= 2;
+
+            // write into _path
+            if ((j + 1) % 4) {
+                fprintf(_f, "%d ", train_table[i].seat_stat[j]);
+            } else {
+                fprintf(_f, "%d\n", train_table[i].seat_stat[j]);
+            }
         }
+
+        fclose(f);
+        fclose(_f);
+
         if (stat(fp, &stat_buf) == -1)
             return -1;
         train_table[i].least_modify = stat_buf.st_mtim;
         train_table[i].id = shift_id;
         strcpy(train_table[i].path, fp);
+        strcpy(train_table[i]._path, _fp);
     }
     return 0;
 }
