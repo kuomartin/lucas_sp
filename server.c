@@ -170,7 +170,6 @@ int main(int argc, char **argv) {
                         memset(buf, 0, sizeof(buf));
                         req_table[i].buf_len = nbytes;
                         int exit_code = call_handle(&req_table[i]);
-                        send(req_table[i].conn_fd, req_table[i].buf, strlen(req_table[i].buf), 0);
                         switch (exit_code) {
                         case -2:
                             printf("Client %s invalid operation.\n", req_table[i].host);
@@ -399,9 +398,12 @@ int call_handle(request *req) {
         if (strlen(pch) == 0)
             continue;
         exit_code = handle_request(req, pch, req->buf);
+        send(req->conn_fd, req->buf, strlen(req->buf), 0);
+        memset(req->buf, 0, sizeof(req->buf));
         if (exit_code)
             return exit_code;
         pch = strtok(NULL, "\n");
     };
+
     return 0;
 }

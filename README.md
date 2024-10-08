@@ -1,10 +1,11 @@
 ### Useful commands
 
-| code               |                 |
-| ------------------ | --------------- |
-| `make run_servers` | run all servers |
-| `lsof -i`          | list open files |
-| `kill PID`         |                 |
+| code                                                                   |                 |
+| ---------------------------------------------------------------------- | --------------- |
+| `make run_servers`                                                     | run all servers |
+| `lsof -i`                                                              | list open files |
+| `kill PID`                                                             |                 |
+| `nc localhost 9034 < testcases/testcase2-2/3-multiseat.in > 2-2.3.out` |                 |
 
 ### TODO
 
