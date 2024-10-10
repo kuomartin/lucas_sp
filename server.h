@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/file.h>
 #include <unistd.h>
 
 #define TRAIN_NUM 5
@@ -80,18 +81,22 @@ train_info *get_train_info(int shift_id) {
     info->least_modify = stat_buf.st_mtim;
     if (secdiff > 0 || (secdiff == 0 && nsecdiff > 0)) {
         FILE *_f = fopen(_fp, "r");
+        int _f_lock = flock(fileno(_f),1);
         for (int i = 0; i < SEAT_NUM; i++) {
             int status;
             fscanf(_f, "%d", &status);
             info->seat_stat[i] = status;
         }
+        int _f_release = flock(fileno(_f),8);
         fclose(_f);
     }
     return info;
 }
 int write_train_info(train_info *info) {
     FILE *f = fopen(info->path, "w");
+    int f_lock = flock(fileno(f),2);
     FILE *_f = fopen(info->_path, "w");
+    int _f_lock = flock(fileno(_f),2);
 
     if (f == NULL || _f == NULL)
         return 1; // fail to open
@@ -104,7 +109,9 @@ int write_train_info(train_info *info) {
             fprintf(_f, "%d\n", info->seat_stat[i]);
         }
     }
+    int f_release = flock(fileno(f),8);
     fclose(f);
+    int _f_release = flock(fileno(_f),8);
     fclose(_f);
     struct stat stat_buf;
     if (stat(info->_path, &stat_buf) == -1)

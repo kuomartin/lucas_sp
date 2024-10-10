@@ -227,7 +227,9 @@ int init_train_table(void) {
         sprintf(fp, "%s%d", csie_trains_prefix, shift_id);
         sprintf(_fp, "%s%d", _csie_trains_prefix, shift_id);
         FILE *f = fopen(fp, "r");
+        int f_lock = flock(fileno(f), 1);
         FILE *_f = fopen(_fp, "w");
+        int _f_lock = flock(fileno(_f),2);
         for (j = 0; j < SEAT_NUM; j++) {
             fscanf(f, "%d", &train_table[i].seat_stat[j]);
             train_table[i].seat_stat[j] *= 2;
@@ -240,7 +242,9 @@ int init_train_table(void) {
             }
         }
 
+        int f_release = flock(fileno(f), 8);
         fclose(f);
+        int _f_release = flock(fileno(_f), 8);
         fclose(_f);
 
         if (stat(fp, &stat_buf) == -1)
