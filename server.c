@@ -146,10 +146,10 @@ int main(int argc, char **argv) {
                         strcpy(req_table[newfd].host, inet_ntop(remoteaddr.ss_family,
                                                                 get_in_addr((struct sockaddr *)&remoteaddr),
                                                                 remoteIP, INET6_ADDRSTRLEN));
-                        printf("server: new connection from %s on "
+                        /*printf("server: new connection from %s on "
                                "socket %d\n",
                                req_table[newfd].host,
-                               newfd);
+                               newfd);*/
                         handle_request(&req_table[newfd], NULL, (req_table[newfd].buf));
                         send(req_table[newfd].conn_fd, req_table[newfd].buf, strlen(req_table[newfd].buf), 0);
                     }
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
                         // got error or connection closed by client
                         if (nbytes == 0) {
                             // connection closed
-                            printf("server: socket %d hung up\n", i);
+                            //printf("server: socket %d hung up\n", i);
                             rm_req(i);
                         } else {
                             perror("recv");
@@ -169,15 +169,15 @@ int main(int argc, char **argv) {
                     } else {
                         // we got some data from a client
                         strcpy(req_table[i].buf, buf);
-                        printf("%s says: '''%s'''\n", req_table[i].host, buf);
+                        //printf("%s says: '''%s'''\n", req_table[i].host, buf);
                         memset(buf, 0, sizeof(buf));
                         req_table[i].buf_len = nbytes;
                         int exit_code = call_handle(&req_table[i]);
                         switch (exit_code) {
                         case -2:
-                            printf("Client %s invalid operation.\n", req_table[i].host);
+                            //printf("Client %s invalid operation.\n", req_table[i].host);
                         case -1:
-                            printf("Client %s exits.\n", req_table[i].host);
+                            //printf("Client %s exits.\n", req_table[i].host);
                             FD_CLR(i, &master);
                             close(i);
                             rm_req(i);
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
                 // 1000000 microseconds = 1 second
                 if (tv_diff > 5) {
                     close(i);
-                    printf("Timeout: client %s closed in %f seconds.\n", req_table[i].host, tv_diff);
+                    //printf("Timeout: client %s closed in %f seconds.\n", req_table[i].host, tv_diff);
                     FD_CLR(i, &master);
                     rm_req(i);
                 }
